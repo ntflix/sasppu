@@ -94,7 +94,7 @@ SASPPUImageCode SASPPU_fill_background(size_t x, size_t y, size_t width, size_t 
 SASPPUImageCode SASPPU_draw_text_background(size_t x, size_t y, uint16_t colour, size_t line_width, size_t newline_height, bool double_size, const char *text);
 SASPPUImageCode SASPPU_draw_text_next_background(size_t *x, size_t *y, uint16_t colour, size_t line_start, size_t line_width, size_t newline_height, bool double_size, const char **text);
 
-void SASPPU_get_text_size(size_t *width, size_t *height, size_t line_width, size_t newline_height, bool double_size, const char **text);
+void SASPPU_get_text_size(size_t *width, size_t *height, size_t line_width, size_t newline_height, bool double_size, const char *text);
 
 void SASPPU_gfx_reset();
 

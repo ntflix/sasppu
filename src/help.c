@@ -268,14 +268,14 @@ static inline SASPPUImageCode SASPPU_draw_text(size_t x, size_t y, uint16_t colo
     return res;
 }
 
-void SASPPU_get_text_size(size_t *width, size_t *height, size_t line_width, size_t newline_height, bool double_size, const char **text)
+void SASPPU_get_text_size(size_t *width, size_t *height, size_t line_width, size_t newline_height, bool double_size, const char *text)
 {
     *width = 0;
     *height = 0;
     size_t x = 0;
     while (1)
     {
-        char next_char = *((*text)++);
+        char next_char = *(text++);
         if (next_char == 0)
         {
             if (double_size)
