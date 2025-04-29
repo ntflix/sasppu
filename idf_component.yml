@@ -1,0 +1,6 @@
+version: "1.1.1"
+files:
+  use_gitignore: true
+dependencies:
+  idf:
+    version: ">=4.1.0"
