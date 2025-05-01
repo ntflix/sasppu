@@ -38,11 +38,11 @@ inline void IDENT(uint16x8_t *const scanline, int16_t y)
 
         if ((bg_map & 0b10) > 0)
         {
-                bg_1_p = &SASPPU_background[(size_t)(bg_map >> 3) + ((7 - offset_y) * (BG_WIDTH >> 3))];
+                bg_1_p = &SASPPU_background[(size_t)(bg_map >> 2) + ((7 - offset_y) * (BG_WIDTH >> 3))];
         }
         else
         {
-                bg_1_p = &SASPPU_background[(size_t)(bg_map >> 3) + (offset_y * (BG_WIDTH >> 3))];
+                bg_1_p = &SASPPU_background[(size_t)(bg_map >> 2) + (offset_y * (BG_WIDTH >> 3))];
         };
 
 #if USE_GCC_SIMD
@@ -104,11 +104,11 @@ inline void IDENT(uint16x8_t *const scanline, int16_t y)
 
                 if ((bg_map & 0b10) > 0)
                 {
-                        bg_1_p = &SASPPU_background[(size_t)(bg_map >> 3) + ((7 - offset_y) * (BG_WIDTH >> 3))];
+                        bg_1_p = &SASPPU_background[(size_t)(bg_map >> 2) + ((7 - offset_y) * (BG_WIDTH >> 3))];
                 }
                 else
                 {
-                        bg_1_p = &SASPPU_background[(size_t)(bg_map >> 3) + (offset_y * (BG_WIDTH >> 3))];
+                        bg_1_p = &SASPPU_background[(size_t)(bg_map >> 2) + (offset_y * (BG_WIDTH >> 3))];
                 };
 
                 if ((bg_map & 0b01) > 0)

@@ -98,8 +98,9 @@ fn main() {
             } else {
                 (x, false)
             };
-            ppu.bg0[y][x] =
-                ((xpos + (ypos * BG_WIDTH)) * 8) as u16 | ((flipy as u16) << 1) | (flipx as u16);
+            ppu.bg0[y][x] = (((xpos + (ypos * BG_WIDTH)) * 8) >> 1) as u16
+                | ((flipy as u16) << 1)
+                | (flipx as u16);
         }
     }
 
@@ -131,10 +132,10 @@ fn main() {
             ppu.bg0_state.scroll_x = ((epoch * 2.0).sin() * 256.0 + 256.0) as i16;
             ppu.bg0_state.scroll_y = ((epoch * 3.0).cos() * 256.0 + 256.0) as i16;
             for (i, spr) in ppu.oam.iter_mut().take(TEST_SPR_COUNT).enumerate() {
-                spr.x = ((epoch * (5.0 + (0.3 * (i >> 1) as f64))).sin() * (120.0)
-                    + (120.0 - 16.0)) as i16;
-                spr.y = ((epoch * (7.0 + (0.2 * (i >> 1) as f64))).cos() * (120.0)
-                    + (120.0 - 16.0)) as i16;
+                spr.x = ((epoch * (5.0 + (0.3 * (i >> 1) as f64))).sin() * (120.0) + (120.0 - 16.0))
+                    as i16;
+                spr.y = ((epoch * (7.0 + (0.2 * (i >> 1) as f64))).cos() * (120.0) + (120.0 - 16.0))
+                    as i16;
             }
             ppu.render(&mut before_buf);
             for (x, col) in buffer.iter_mut().zip(before_buf.iter().flatten()) {

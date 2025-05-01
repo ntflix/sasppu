@@ -157,7 +157,7 @@ pub const MAIN_CMATH_ENABLE: u8 = 1 << 4;
 pub const MAIN_BGCOL_WINDOW_ENABLE: u8 = 1 << 5;
 
 pub const BG_WIDTH_POWER: usize = 8;
-pub const BG_HEIGHT_POWER: usize = 8;
+pub const BG_HEIGHT_POWER: usize = 9;
 pub const BG_WIDTH: usize = 1 << BG_WIDTH_POWER;
 pub const BG_HEIGHT: usize = 1 << BG_HEIGHT_POWER;
 
@@ -366,9 +366,9 @@ fn handle_bg(
 
     let bg_map = map[y_pos][x_pos]; // -> q5
     let mut bg_1 = if (bg_map & 0b10) > 0 {
-        graphics[(bg_map >> 3) as usize + ((7 - offset_y) * (BG_WIDTH >> 3))]
+        graphics[(bg_map >> 2) as usize + ((7 - offset_y) * (BG_WIDTH >> 3))]
     } else {
-        graphics[(bg_map >> 3) as usize + (offset_y * (BG_WIDTH >> 3))]
+        graphics[(bg_map >> 2) as usize + (offset_y * (BG_WIDTH >> 3))]
     }; // -> q5
 
     if (bg_map & 0b01) > 0 {
@@ -383,9 +383,9 @@ fn handle_bg(
 
         let bg_map = map[y_pos][x_pos]; // -> q5
         bg_1 = if (bg_map & 0b10) > 0 {
-            graphics[(bg_map >> 3) as usize + ((7 - offset_y) * (BG_WIDTH >> 3))]
+            graphics[(bg_map >> 2) as usize + ((7 - offset_y) * (BG_WIDTH >> 3))]
         } else {
-            graphics[(bg_map >> 3) as usize + (offset_y * (BG_WIDTH >> 3))]
+            graphics[(bg_map >> 2) as usize + (offset_y * (BG_WIDTH >> 3))]
         }; // -> q5
 
         if (bg_map & 0b01) > 0 {
