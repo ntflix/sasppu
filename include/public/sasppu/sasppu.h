@@ -47,6 +47,7 @@ typedef struct
     uint8_t height;
     uint8_t graphics_x;
     uint8_t graphics_y;
+    uint8_t rotation; // 0-3 for 0, 90, 180, 270 degrees, 4 for C-Math
     uint8_t windows;
     uint8_t flags;
 } Sprite;
