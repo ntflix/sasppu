@@ -16,28 +16,44 @@ pub const WINDOW_X: u8 = 0b1000;
 pub const WINDOW_ALL: u8 = 0b1111;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rotation {
+    R0,
+    R90,
+    R180,
+    R270,
+}
+
+impl Default for Rotation {
+    fn default() -> Self {
+        Rotation::R0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Sprite {
-    pub x:          i16,
-    pub y:          i16,
-    pub width:      u8,
-    pub height:     u8,
+    pub x: i16,
+    pub y: i16,
+    pub width: u8,
+    pub height: u8,
     pub graphics_x: u8,
     pub graphics_y: u8,
-    pub windows:    u8,
-    pub flags:      u8,
+    pub windows: u8,
+    pub flags: u8,
+    pub rotation: Rotation,
 }
 
 impl Sprite {
     pub const fn new() -> Self {
         Sprite {
-            x:          0,
-            y:          0,
-            width:      8,
-            height:     8,
+            x: 0,
+            y: 0,
+            width: 8,
+            height: 8,
             graphics_x: 0,
             graphics_y: 0,
-            windows:    0xFF,
-            flags:      0,
+            windows: 0xFF,
+            flags: 0,
+            rotation: Rotation::R0,
         }
     }
 }
@@ -59,8 +75,8 @@ pub const SPR_DOUBLE: u8 = 1 << 5;
 pub struct Background {
     pub scroll_x: i16,
     pub scroll_y: i16,
-    pub windows:  u8,
-    pub flags:    u8,
+    pub windows: u8,
+    pub flags: u8,
 }
 
 impl Background {
@@ -68,8 +84,8 @@ impl Background {
         Background {
             scroll_x: 0,
             scroll_y: 0,
-            windows:  0xFF,
-            flags:    0,
+            windows: 0xFF,
+            flags: 0,
         }
     }
 }
@@ -85,14 +101,14 @@ pub const BG_C_MATH: u8 = 1 << 0;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CMathState {
     pub screen_fade: u8,
-    pub flags:       u8,
+    pub flags: u8,
 }
 
 impl CMathState {
     pub const fn new() -> Self {
         CMathState {
             screen_fade: 0,
-            flags:       0,
+            flags: 0,
         }
     }
 }
@@ -115,14 +131,14 @@ pub const CMATH_CMATH_ENABLE: u8 = 1 << 7;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MainState {
     pub mainscreen_colour: u16,
-    pub subscreen_colour:  u16,
+    pub subscreen_colour: u16,
 
     // windowing
-    pub window_1_left:  u8,
+    pub window_1_left: u8,
     pub window_1_right: u8,
-    pub window_2_left:  u8,
+    pub window_2_left: u8,
     pub window_2_right: u8,
-    pub bgcol_windows:  u8,
+    pub bgcol_windows: u8,
 
     pub flags: u8,
 }
@@ -131,14 +147,14 @@ impl MainState {
     pub const fn new() -> Self {
         MainState {
             mainscreen_colour: 0,
-            subscreen_colour:  0,
+            subscreen_colour: 0,
             // windowing
-            window_1_left:     0,
-            window_1_right:    255,
-            window_2_left:     0,
-            window_2_right:    255,
-            bgcol_windows:     0xFF,
-            flags:             0,
+            window_1_left: 0,
+            window_1_right: 255,
+            window_2_left: 0,
+            window_2_right: 255,
+            bgcol_windows: 0xFF,
+            flags: 0,
         }
     }
 }
@@ -229,9 +245,9 @@ pub const SASPPU_HDMA_TABLE_COUNT: usize = 8;
 pub type HDMATables = [[HDMAEntry; 240]; SASPPU_HDMA_TABLE_COUNT];
 
 pub struct SASPPU {
-    pub main_state:  MainState,
-    pub bg0_state:   Background,
-    pub bg1_state:   Background,
+    pub main_state: MainState,
+    pub bg0_state: Background,
+    pub bg1_state: Background,
     pub cmath_state: CMathState,
 
     pub oam: SpriteMap,
@@ -239,7 +255,7 @@ pub struct SASPPU {
     pub bg1: BackgroundMap,
 
     pub background: GraphicsPlane,
-    pub sprites:    SpritePlane,
+    pub sprites: SpritePlane,
 
     pub hdma_tables: HDMATables,
     pub hdma_enable: u8,
@@ -402,16 +418,93 @@ fn handle_bg(
     }
 }
 
+/// generic 90°/270° handler: walks every source‐pixel, maps to this scanline `y`
+#[inline]
+fn handle_sprite_rotated<const CMATH: bool, const DOUBLE: bool>(
+    sprite: &Sprite,
+    graphics: &SpritePlane,
+    main_col: &mut [u16x8; 240 / 8],
+    sub_col: &mut [u16x8; 240 / 8],
+    y: i16,
+    window_1: &[mask16x8; 240 / 8],
+    window_2: &[mask16x8; 240 / 8],
+    rotation: Rotation,
+) {
+    let w = sprite.width as i16;
+    let h = sprite.height as i16;
+    let gy = sprite.graphics_y as usize;
+    let gx = sprite.graphics_x as usize;
+
+    // loop source‐rows
+    for src_y in 0..h {
+        // compute which scanline this row hits after rotation
+        let scan_y = match rotation {
+            Rotation::R90 => sprite.y + src_y,
+            Rotation::R270 => sprite.y + (h - 1 - src_y),
+            _ => continue,
+        };
+        if scan_y != y {
+            continue;
+        }
+
+        // now walk every source‐column
+        for src_x in 0..w {
+            // map to screen‐x
+            let scan_x = match rotation {
+                Rotation::R90 => sprite.x + (h - 1 - src_x),
+                Rotation::R270 => sprite.x + src_x,
+                _ => continue,
+            };
+            if scan_x < 0 || scan_x >= 240 {
+                continue;
+            }
+
+            // fetch the pixel (0..7 lane) from the tile‐plane
+            let lane = (src_x as usize) & 0x7;
+            let tile_row = gy + src_y as usize;
+            let tile_col = ((gx + src_x as usize) >> 3) as usize;
+            let tile_vec = graphics[tile_row][tile_col];
+            let pixel = tile_vec.as_array()[lane];
+            if pixel == 0 {
+                continue;
+            }
+
+            // build the output column
+            let mut col = u16x8::splat(pixel);
+            if CMATH {
+                col |= u16x8::splat(0x8000);
+            }
+
+            let block = (scan_x as usize) >> 3;
+            select_correct_handle_window(sprite.windows)(
+                window_1, window_2, main_col, sub_col, block, col,
+            );
+        }
+    }
+}
+
 #[inline]
 fn handle_sprite<const FLIP_X: bool, const FLIP_Y: bool, const CMATH: bool, const DOUBLE: bool>(
     sprite: &Sprite,
     graphics: &SpritePlane,
-    main_col: &mut [u16x8; 240 / 8], // q0
-    sub_col: &mut [u16x8; 240 / 8],  // q1
+    main_col: &mut [u16x8; 240 / 8],
+    sub_col: &mut [u16x8; 240 / 8],
     y: i16,
-    window_1: &[mask16x8; 240 / 8], // q2
-    window_2: &[mask16x8; 240 / 8], // q3
+    window_1: &[mask16x8; 240 / 8],
+    window_2: &[mask16x8; 240 / 8],
 ) {
+    // dispatch 90°/270° via the shared rotator
+    let rot = sprite.rotation;
+    if matches!(rot, Rotation::R90 | Rotation::R270) {
+        return handle_sprite_rotated::<CMATH, DOUBLE>(
+            sprite, graphics, main_col, sub_col, y, window_1, window_2, rot,
+        );
+    }
+
+    // for 0° and 180°, we just flip axes if rot==180
+    let flip_x = FLIP_X ^ (rot == Rotation::R180);
+    let flip_y = FLIP_Y ^ (rot == Rotation::R180);
+
     assert_eq!(sprite.width & 0x7, 0);
     assert!(sprite.width > 0);
 
@@ -423,8 +516,9 @@ fn handle_sprite<const FLIP_X: bool, const FLIP_Y: bool, const CMATH: bool, cons
 
     let offset = (8 - (sprite.x & 0x7i16)) as usize & 0x07;
 
+    // compute Y offset, flipping if needed
     let mut offset_y = y - sprite.y;
-    if FLIP_Y {
+    if flip_y {
         offset_y = sprite_width as i16 - offset_y - 1;
     }
     if DOUBLE {
@@ -432,30 +526,25 @@ fn handle_sprite<const FLIP_X: bool, const FLIP_Y: bool, const CMATH: bool, cons
     }
     let offset_y = offset_y as usize;
 
-    let mut x_pos = if FLIP_X { -8 } else { sprite.width as isize };
+    // compute X position cursor
+    let mut x_pos = if flip_x { -8 } else { sprite.width as isize };
 
     let mut spr_1 = u16x8::splat(0);
     let mut spr_2;
 
     let mut start_x = (sprite.x as isize) / 8;
     let mut end_x = ((sprite.x + sprite_width as i16) as isize) / 8;
-
     if (sprite.x & 0x7) == 0 {
         start_x -= 1;
         end_x -= 1;
     }
 
-    let start_x = start_x;
-    let start_x = start_x;
-
     let mut x = end_x;
     while x >= start_x {
-        x_pos = if FLIP_X { x_pos + 8 } else { x_pos - 8 };
-
+        x_pos = if flip_x { x_pos + 8 } else { x_pos - 8 };
         spr_2 = spr_1;
 
-        spr_1 = if (FLIP_X && x_pos >= sprite.width as isize) || (!FLIP_X && x_pos < 0) {
-            // q5
+        spr_1 = if (flip_x && x_pos >= sprite.width as isize) || (!flip_x && x_pos < 0) {
             u16x8::splat(0)
         } else {
             graphics[offset_y + sprite.graphics_y as usize]
@@ -466,47 +555,43 @@ fn handle_sprite<const FLIP_X: bool, const FLIP_Y: bool, const CMATH: bool, cons
             let mut spr_1_high;
             (spr_1, spr_1_high) = spr_1.interleave(spr_1);
 
-            if FLIP_X {
+            if flip_x {
                 (spr_1_high, spr_1) = (spr_1.reverse(), spr_1_high.reverse());
             }
 
+            // first half‐tile
             if x >= 0 && x < 30 {
-                let mut spr_col = swimzleoo(spr_1_high, spr_2, offset); // q4
-
+                let mut spr_col = swimzleoo(spr_1_high, spr_2, offset);
                 if CMATH {
                     spr_col |= u16x8::splat(0x8000);
                 }
-
                 select_correct_handle_window(sprite.windows)(
                     window_1, window_2, main_col, sub_col, x as usize, spr_col,
                 );
             }
             x -= 1;
 
+            // second half‐tile
             if x >= 0 && x < 30 {
-                let mut spr_col = swimzleoo(spr_1, spr_1_high, offset); // q4
-
+                let mut spr_col = swimzleoo(spr_1, spr_1_high, offset);
                 if CMATH {
                     spr_col |= u16x8::splat(0x8000);
                 }
-
                 select_correct_handle_window(sprite.windows)(
                     window_1, window_2, main_col, sub_col, x as usize, spr_col,
                 );
             }
             x -= 1;
         } else {
-            if FLIP_X {
+            if flip_x {
                 spr_1 = spr_1.reverse();
             }
 
             if x >= 0 && x < 30 {
-                let mut spr_col = swimzleoo(spr_1, spr_2, offset); // q4
-
+                let mut spr_col = swimzleoo(spr_1, spr_2, offset);
                 if CMATH {
                     spr_col |= u16x8::splat(0x8000);
                 }
-
                 select_correct_handle_window(sprite.windows)(
                     window_1, window_2, main_col, sub_col, x as usize, spr_col,
                 );
@@ -908,20 +993,20 @@ impl SASPPU {
             match entry.command {
                 HDMACommand::WriteMainState(state) => {
                     self.main_state = state;
-                },
+                }
                 HDMACommand::WriteBG0State(state) => {
                     self.bg0_state = state;
-                },
+                }
                 HDMACommand::WriteBG1State(state) => {
                     self.bg1_state = state;
-                },
+                }
                 HDMACommand::WriteCMathState(state) => {
                     self.cmath_state = state;
-                },
+                }
                 HDMACommand::WriteOAM((index, spr)) => {
                     self.oam[index as usize] = spr;
-                },
-                _ => {},
+                }
+                _ => {}
             }
         }
     }
@@ -1035,15 +1120,15 @@ impl SASPPU {
 
     pub const fn new() -> Self {
         SASPPU {
-            bg0:         [[16; MAP_WIDTH]; MAP_HEIGHT],
-            bg1:         [[16; MAP_WIDTH]; MAP_HEIGHT],
-            main_state:  MainState::new(),
-            bg0_state:   Background::new(),
-            bg1_state:   Background::new(),
+            bg0: [[16; MAP_WIDTH]; MAP_HEIGHT],
+            bg1: [[16; MAP_WIDTH]; MAP_HEIGHT],
+            main_state: MainState::new(),
+            bg0_state: Background::new(),
+            bg1_state: Background::new(),
             cmath_state: CMathState::new(),
-            oam:         [Sprite::new(); SPRITE_COUNT],
-            background:  [u16x8::from_array([0; 8]); (BG_WIDTH / 8) * BG_HEIGHT],
-            sprites:     [[u16x8::from_array([0; 8]); SPR_WIDTH / 8]; SPR_HEIGHT],
+            oam: [Sprite::new(); SPRITE_COUNT],
+            background: [u16x8::from_array([0; 8]); (BG_WIDTH / 8) * BG_HEIGHT],
+            sprites: [[u16x8::from_array([0; 8]); SPR_WIDTH / 8]; SPR_HEIGHT],
             hdma_tables: [[HDMAEntry::new(); 240]; SASPPU_HDMA_TABLE_COUNT],
             hdma_enable: 0,
         }
